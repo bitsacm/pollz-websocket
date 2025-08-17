@@ -23,7 +23,6 @@ go.work
 go.work.sum
 
 # Binary files
-server
 websocket-go
 /bin/
 
