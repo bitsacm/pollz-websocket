@@ -25,8 +25,6 @@ go.work.sum
 # Binary files
 server
 websocket-go
-main
-cmd/server/server
 /bin/
 
 # Go mod cache
