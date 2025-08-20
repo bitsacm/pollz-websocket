@@ -27,13 +27,13 @@ func New(cfg *config.Config, wsHandler *handlers.WebSocketHandler, apiHandler *h
 func (s *Server) Start() error {
 	mux := http.NewServeMux()
 	
-	// WebSocket endpoints - Temporarily disabled
+	// WebSocket endpoints - Temporarily disabled (no new message sending)
 	// mux.HandleFunc("/ws/chat/live", s.wsHandler.HandleConnection)
 	
-	// API endpoints - Temporarily disabled
-	// mux.HandleFunc("/api/messages/search", s.apiHandler.SearchMessages)
-	// mux.HandleFunc("/api/messages/date", s.apiHandler.GetMessagesByDate)
-	// mux.HandleFunc("/api/stats", s.apiHandler.GetStats)
+	// API endpoints - Keep read-only endpoints for existing messages
+	mux.HandleFunc("/api/messages/search", s.apiHandler.SearchMessages)
+	mux.HandleFunc("/api/messages/date", s.apiHandler.GetMessagesByDate)
+	mux.HandleFunc("/api/stats", s.apiHandler.GetStats)
 	mux.HandleFunc("/health", s.apiHandler.HealthCheck)
 	
 	// Apply middleware
