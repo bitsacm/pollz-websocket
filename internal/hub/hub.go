@@ -93,7 +93,7 @@ func New(redisClient *redis.Client, db *sql.DB) *Hub {
 		"mootne", "mutne", "mooth", "muth", "nunni", "nunnu", "paaji", "paji", "pesaab", "pesab",
 		"peshaab", "peshab", "pilla", "pillay", "pille", "pilley", "pisaab", "pisab", "pkmkb",
 		"porkistan", "raand", "rand", "randi", "randy", "suar", "tatte", "tatti", "tatty", "ullu", "SU", "zero",
-		"anuj", "wagh", "sajal", "yadav", "aditya", "khandelwal", "nepali", "daksh", "tyagi", "apoorv", "singh", "gurgaon", "tarang", "agrawal", "test", "hello",
+		"anuj", "wagh", "sajal", "yadav", "aditya", "khandelwal", "nepali", "daksh", "tyagi", "apoorv", "singh", "gurgaon", "tarang", "agrawal", "test",
 	}
 	trie := NewTrie()
 
