@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -13,24 +14,94 @@ import (
 	"github.com/pollz/websocket-server/internal/repository"
 	"github.com/redis/go-redis/v9"
 )
+type TrieNode struct {
+    children map[rune]*TrieNode
+    isEnd    bool
+}
 
+// Trie structure
+type Trie struct {
+    root *TrieNode
+}
+
+// Create new Trie
+func NewTrie() *Trie {
+    return &Trie{root: &TrieNode{children: make(map[rune]*TrieNode)}}
+}
+
+// Insert a word into the Trie
+func (t *Trie) Insert(word string) {
+    node := t.root
+    for _, ch := range word {
+        if node.children[ch] == nil {
+            node.children[ch] = &TrieNode{children: make(map[rune]*TrieNode)}
+        }
+        node = node.children[ch]
+    }
+    node.isEnd = true
+}
+
+// Search checks if the word exists in the Trie
+func (t *Trie) Search(word string) bool {
+    node := t.root
+    for _, ch := range word {
+        if node.children[ch] == nil {
+            return false
+        }
+        node = node.children[ch]
+    }
+    return node.isEnd
+}
 type Hub struct {
 	clients    map[*models.Client]bool
 	broadcast  chan models.Message
 	register   chan *models.Client
 	unregister chan *models.Client
 	mu         sync.RWMutex
-	
+	tri       *Trie
 	messageRepo  *repository.MessageRepository
 	messageCache *cache.MessageCache
 }
 
+
 func New(redisClient *redis.Client, db *sql.DB) *Hub {
+	words := []string{
+        "aad", "aand", "bahenchod", "behenchod", "bhenchod", "bhenchodd", "b.c.", "bc",
+        "bakchod", "bakchodd", "bakchodi", "bevda", "bewda", "bevdey", "bewday", "bevakoof",
+        "bevkoof", "bevkuf", "bewakoof", "bewkoof", "bewkuf", "bhadua", "bhaduaa", "bhadva",
+        "bhadvaa", "bhadwa", "bhadwaa", "bhosada", "bhosda", "bhosdaa", "bhosdike", "bhonsdike",
+        "bsdk", "b.s.d.k", "bhosdiki", "bhosdiwala", "bhosdiwale", "bhosadchodal", "bhosadchod",
+        "babbe", "babbey", "bube", "bubey", "bur", "burr", "buurr", "buur", "charsi", "chooche",
+        "choochi", "chuchi", "chhod", "chod", "chodd", "chudne", "chudney", "chudwa", "chudwaa",
+        "chudwane", "chudwaane", "choot", "chut", "chute", "chutia", "chutiya", "chutiye",
+        "chuttad", "chutad", "dalaal", "dalal", "dalle", "dalley", "fattu", "gadha", "gadhe",
+        "gadhalund", "gaand", "gand", "gandu", "gandfat", "gandfut", "gandiya", "gandiye", "goo",
+        "gu", "gote", "gotey", "gotte", "hag", "haggu", "hagne", "hagney", "harami", "haramjada",
+        "haraamjaada", "haramzyada", "haraamzyaada", "haraamjaade", "haraamzaade", "haraamkhor",
+        "haramkhor", "jhat", "jhaat", "jhaatu", "jhatu", "kutta", "kutte", "kuttey", "kutia",
+        "kutiya", "kuttiya", "kutti", "landi", "landy", "laude", "laudey", "laura", "lora",
+        "lauda", "ling", "loda", "lode", "lund", "launda", "lounde", "laundey", "laundi", "loundi",
+        "laundiya", "loundiya", "lulli", "maar", "maro", "marunga", "madarchod", "madarchodd",
+        "madarchood", "madarchoot", "madarchut", "m.c.", "mc", "mamme", "mammey", "moot", "mut",
+        "mootne", "mutne", "mooth", "muth", "nunni", "nunnu", "paaji", "paji", "pesaab", "pesab",
+        "peshaab", "peshab", "pilla", "pillay", "pille", "pilley", "pisaab", "pisab", "pkmkb",
+        "porkistan", "raand", "rand", "randi", "randy", "suar", "tatte", "tatti", "tatty", "ullu",
+		"anuj","wagh","sajal","yadav","aditya","khandelwal","nepali","daksh","tyagi","apoorv","singh","gurgaon","tarang","agrawal",
+    }
+	trie := NewTrie()
+
+    // Insert words into Trie
+    for _, w := range words {
+        trie.Insert(w)
+    }
+
+
 	return &Hub{
 		clients:      make(map[*models.Client]bool),
 		broadcast:    make(chan models.Message, 256),
 		register:     make(chan *models.Client),
 		unregister:   make(chan *models.Client),
+		tri:			trie,
 		messageRepo:  repository.NewMessageRepository(db),
 		messageCache: cache.NewMessageCache(redisClient),
 	}
@@ -112,6 +183,20 @@ func (h *Hub) handleUnregister(client *models.Client) {
 	}
 }
 
+func (h *Hub) removeBad(content string) string {
+	words:=strings.Split(content, "")
+	var res=""
+	for _,word :=range words{
+		if h.tri.Search(word) {
+			res+="*** "
+		}else{
+			res+=word+" "
+		}
+	}
+
+	return res
+}
+
 func (h *Hub) handleBroadcast(message models.Message) {
 	// Ensure message has an ID
 	if message.ID == "" {
@@ -124,6 +209,7 @@ func (h *Hub) handleBroadcast(message models.Message) {
 	}
 	
 	// Save message asynchronously
+	message.Content=h.removeBad(message.Content)
 	go h.saveMessage(message)
 	
 	// Broadcast to all connected clients

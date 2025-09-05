@@ -50,7 +50,7 @@ func main() {
 
 	// Start server
 	srv := server.New(cfg, wsHandler, apiHandler)
-	
+
 	log.Printf("Starting WebSocket server on port %s", cfg.Port)
 	if err := srv.Start(); err != nil {
 		log.Fatal("Server failed to start:", err)
