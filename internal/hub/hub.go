@@ -184,19 +184,35 @@ func (h *Hub) handleUnregister(client *models.Client) {
 }
 
 func (h *Hub) removeBad(content string) string {
-	words:=strings.Split(content, "")
-	var res=""
-	for _,word :=range words{
-		if h.tri.Search(word) {
-			res+="*** "
-		}else{
-			res+=word+" "
-		}
-	}
-
-	return res
+    if h.tri == nil || content == "" {
+        return content
+    }
+    var b strings.Builder
+    token := make([]rune, 0, 32)
+    flush := func() {
+        if len(token) == 0 {
+            return
+        }
+        word := string(token)
+        norm := strings.ToLower(word)
+        if h.tri.Search(norm) {
+            b.WriteString("***")
+        } else {
+            b.WriteString(word)
+        }
+        token = token[:0]
+    }
+    for _, r := range content {
+        if unicode.IsLetter(r) || unicode.IsDigit(r) {
+            token = append(token, r)
+        } else {
+            flush()
+            b.WriteRune(r) // preserve original punctuation/whitespace
+        }
+    }
+    flush()
+    return b.String()
 }
-
 func (h *Hub) handleBroadcast(message models.Message) {
 	// Ensure message has an ID
 	if message.ID == "" {
