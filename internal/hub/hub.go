@@ -237,7 +237,7 @@ func (h *Hub) removeBad(content string) string {
 	}
 	flush()
 	
-	result := b.String()
+	result = b.String()
 	
 	// Second pass: Check for spaced-out words (like "b s d k" -> "bsdk")
 	// Only do this check if the content is reasonable length to avoid issues
