@@ -31,8 +31,12 @@ func NewTrie() *Trie {
 
 // Insert a word into the Trie
 func (t *Trie) Insert(word string) {
+    w := strings.ToLower(strings.TrimSpace(word))
+    if w == "" {
+        return
+    }
     node := t.root
-    for _, ch := range word {
+    for _, ch := range w {
         if node.children[ch] == nil {
             node.children[ch] = &TrieNode{children: make(map[rune]*TrieNode)}
         }
