@@ -8,104 +8,106 @@ import (
 	"sync"
 	"time"
 
+	"unicode"
+
 	"github.com/google/uuid"
 	"github.com/pollz/websocket-server/internal/cache"
 	"github.com/pollz/websocket-server/internal/models"
 	"github.com/pollz/websocket-server/internal/repository"
 	"github.com/redis/go-redis/v9"
 )
+
 type TrieNode struct {
-    children map[rune]*TrieNode
-    isEnd    bool
+	children map[rune]*TrieNode
+	isEnd    bool
 }
 
 // Trie structure
 type Trie struct {
-    root *TrieNode
+	root *TrieNode
 }
 
 // Create new Trie
 func NewTrie() *Trie {
-    return &Trie{root: &TrieNode{children: make(map[rune]*TrieNode)}}
+	return &Trie{root: &TrieNode{children: make(map[rune]*TrieNode)}}
 }
 
 // Insert a word into the Trie
 func (t *Trie) Insert(word string) {
-    w := strings.ToLower(strings.TrimSpace(word))
-    if w == "" {
-        return
-    }
-    node := t.root
-    for _, ch := range w {
-        if node.children[ch] == nil {
-            node.children[ch] = &TrieNode{children: make(map[rune]*TrieNode)}
-        }
-        node = node.children[ch]
-    }
-    node.isEnd = true
+	w := strings.ToLower(strings.TrimSpace(word))
+	if w == "" {
+		return
+	}
+	node := t.root
+	for _, ch := range w {
+		if node.children[ch] == nil {
+			node.children[ch] = &TrieNode{children: make(map[rune]*TrieNode)}
+		}
+		node = node.children[ch]
+	}
+	node.isEnd = true
 }
 
 // Search checks if the word exists in the Trie
 func (t *Trie) Search(word string) bool {
-    node := t.root
-    for _, ch := range word {
-        if node.children[ch] == nil {
-            return false
-        }
-        node = node.children[ch]
-    }
-    return node.isEnd
+	node := t.root
+	for _, ch := range word {
+		if node.children[ch] == nil {
+			return false
+		}
+		node = node.children[ch]
+	}
+	return node.isEnd
 }
+
 type Hub struct {
-	clients    map[*models.Client]bool
-	broadcast  chan models.Message
-	register   chan *models.Client
-	unregister chan *models.Client
-	mu         sync.RWMutex
-	tri       *Trie
+	clients      map[*models.Client]bool
+	broadcast    chan models.Message
+	register     chan *models.Client
+	unregister   chan *models.Client
+	mu           sync.RWMutex
+	tri          *Trie
 	messageRepo  *repository.MessageRepository
 	messageCache *cache.MessageCache
 }
 
-
 func New(redisClient *redis.Client, db *sql.DB) *Hub {
 	words := []string{
-        "aad", "aand", "bahenchod", "behenchod", "bhenchod", "bhenchodd", "b.c.", "bc",
-        "bakchod", "bakchodd", "bakchodi", "bevda", "bewda", "bevdey", "bewday", "bevakoof",
-        "bevkoof", "bevkuf", "bewakoof", "bewkoof", "bewkuf", "bhadua", "bhaduaa", "bhadva",
-        "bhadvaa", "bhadwa", "bhadwaa", "bhosada", "bhosda", "bhosdaa", "bhosdike", "bhonsdike",
-        "bsdk", "b.s.d.k", "bhosdiki", "bhosdiwala", "bhosdiwale", "bhosadchodal", "bhosadchod",
-        "babbe", "babbey", "bube", "bubey", "bur", "burr", "buurr", "buur", "charsi", "chooche",
-        "choochi", "chuchi", "chhod", "chod", "chodd", "chudne", "chudney", "chudwa", "chudwaa",
-        "chudwane", "chudwaane", "choot", "chut", "chute", "chutia", "chutiya", "chutiye",
-        "chuttad", "chutad", "dalaal", "dalal", "dalle", "dalley", "fattu", "gadha", "gadhe",
-        "gadhalund", "gaand", "gand", "gandu", "gandfat", "gandfut", "gandiya", "gandiye", "goo",
-        "gu", "gote", "gotey", "gotte", "hag", "haggu", "hagne", "hagney", "harami", "haramjada",
-        "haraamjaada", "haramzyada", "haraamzyaada", "haraamjaade", "haraamzaade", "haraamkhor",
-        "haramkhor", "jhat", "jhaat", "jhaatu", "jhatu", "kutta", "kutte", "kuttey", "kutia",
-        "kutiya", "kuttiya", "kutti", "landi", "landy", "laude", "laudey", "laura", "lora",
-        "lauda", "ling", "loda", "lode", "lund", "launda", "lounde", "laundey", "laundi", "loundi",
-        "laundiya", "loundiya", "lulli", "maar", "maro", "marunga", "madarchod", "madarchodd",
-        "madarchood", "madarchoot", "madarchut", "m.c.", "mc", "mamme", "mammey", "moot", "mut",
-        "mootne", "mutne", "mooth", "muth", "nunni", "nunnu", "paaji", "paji", "pesaab", "pesab",
-        "peshaab", "peshab", "pilla", "pillay", "pille", "pilley", "pisaab", "pisab", "pkmkb",
-        "porkistan", "raand", "rand", "randi", "randy", "suar", "tatte", "tatti", "tatty", "ullu",
-		"anuj","wagh","sajal","yadav","aditya","khandelwal","nepali","daksh","tyagi","apoorv","singh","gurgaon","tarang","agrawal",
-    }
+		"aad", "aand", "bahenchod", "behenchod", "bhenchod", "bhenchodd", "b.c.", "bc",
+		"bakchod", "bakchodd", "bakchodi", "bevda", "bewda", "bevdey", "bewday", "bevakoof",
+		"bevkoof", "bevkuf", "bewakoof", "bewkoof", "bewkuf", "bhadua", "bhaduaa", "bhadva",
+		"bhadvaa", "bhadwa", "bhadwaa", "bhosada", "bhosda", "bhosdaa", "bhosdike", "bhonsdike",
+		"bsdk", "b.s.d.k", "bhosdiki", "bhosdiwala", "bhosdiwale", "bhosadchodal", "bhosadchod",
+		"babbe", "babbey", "bube", "bubey", "bur", "burr", "buurr", "buur", "charsi", "chooche",
+		"choochi", "chuchi", "chhod", "chod", "chodd", "chudne", "chudney", "chudwa", "chudwaa",
+		"chudwane", "chudwaane", "choot", "chut", "chute", "chutia", "chutiya", "chutiye",
+		"chuttad", "chutad", "dalaal", "dalal", "dalle", "dalley", "fattu", "gadha", "gadhe",
+		"gadhalund", "gaand", "gand", "gandu", "gandfat", "gandfut", "gandiya", "gandiye", "goo",
+		"gu", "gote", "gotey", "gotte", "hag", "haggu", "hagne", "hagney", "harami", "haramjada",
+		"haraamjaada", "haramzyada", "haraamzyaada", "haraamjaade", "haraamzaade", "haraamkhor",
+		"haramkhor", "jhat", "jhaat", "jhaatu", "jhatu", "kutta", "kutte", "kuttey", "kutia",
+		"kutiya", "kuttiya", "kutti", "landi", "landy", "laude", "laudey", "laura", "lora",
+		"lauda", "ling", "loda", "lode", "lund", "launda", "lounde", "laundey", "laundi", "loundi",
+		"laundiya", "loundiya", "lulli", "maar", "maro", "marunga", "madarchod", "madarchodd",
+		"madarchood", "madarchoot", "madarchut", "m.c.", "mc", "mamme", "mammey", "moot", "mut",
+		"mootne", "mutne", "mooth", "muth", "nunni", "nunnu", "paaji", "paji", "pesaab", "pesab",
+		"peshaab", "peshab", "pilla", "pillay", "pille", "pilley", "pisaab", "pisab", "pkmkb",
+		"porkistan", "raand", "rand", "randi", "randy", "suar", "tatte", "tatti", "tatty", "ullu", "SU", "zero",
+		"anuj", "wagh", "sajal", "yadav", "aditya", "khandelwal", "nepali", "daksh", "tyagi", "apoorv", "singh", "gurgaon", "tarang", "agrawal", "test", "hello",
+	}
 	trie := NewTrie()
 
-    // Insert words into Trie
-    for _, w := range words {
-        trie.Insert(w)
-    }
-
+	// Insert words into Trie
+	for _, w := range words {
+		trie.Insert(w)
+	}
 
 	return &Hub{
 		clients:      make(map[*models.Client]bool),
 		broadcast:    make(chan models.Message, 256),
 		register:     make(chan *models.Client),
 		unregister:   make(chan *models.Client),
-		tri:			trie,
+		tri:          trie,
 		messageRepo:  repository.NewMessageRepository(db),
 		messageCache: cache.NewMessageCache(redisClient),
 	}
@@ -114,15 +116,15 @@ func New(redisClient *redis.Client, db *sql.DB) *Hub {
 func (h *Hub) Run() {
 	// Start cleanup routine
 	go h.startCleanupRoutine()
-	
+
 	for {
 		select {
 		case client := <-h.register:
 			h.handleRegister(client)
-			
+
 		case client := <-h.unregister:
 			h.handleUnregister(client)
-			
+
 		case message := <-h.broadcast:
 			h.handleBroadcast(message)
 		}
@@ -146,19 +148,19 @@ func (h *Hub) handleRegister(client *models.Client) {
 	h.clients[client] = true
 	clientCount := len(h.clients)
 	h.mu.Unlock()
-	
+
 	// Send recent messages to new client
 	messages, err := h.getRecentMessages()
 	if err != nil {
 		log.Printf("Error getting recent messages: %v", err)
 		messages = []models.Message{}
 	}
-	
+
 	response := models.RecentMessagesResponse{
 		Type:     "recent_messages",
 		Messages: messages,
 	}
-	
+
 	// Send as a special message type
 	select {
 	case client.Send <- models.Message{
@@ -170,7 +172,7 @@ func (h *Hub) handleRegister(client *models.Client) {
 		close(client.Send)
 		delete(h.clients, client)
 	}
-	
+
 	log.Printf("Client %s connected. Total: %d", client.ID, clientCount)
 }
 
@@ -188,50 +190,144 @@ func (h *Hub) handleUnregister(client *models.Client) {
 }
 
 func (h *Hub) removeBad(content string) string {
-    if h.tri == nil || content == "" {
-        return content
-    }
-    var b strings.Builder
-    token := make([]rune, 0, 32)
-    flush := func() {
-        if len(token) == 0 {
-            return
-        }
-        word := string(token)
-        norm := strings.ToLower(word)
-        if h.tri.Search(norm) {
-            b.WriteString("***")
-        } else {
-            b.WriteString(word)
-        }
-        token = token[:0]
-    }
-    for _, r := range content {
-        if unicode.IsLetter(r) || unicode.IsDigit(r) {
-            token = append(token, r)
-        } else {
-            flush()
-            b.WriteRune(r) // preserve original punctuation/whitespace
-        }
-    }
-    flush()
-    return b.String()
+	log.Printf("removeBad called with content: '%s'", content)
+	if h.tri == nil || content == "" {
+		log.Printf("Trie is nil or content empty, returning original: '%s'", content)
+		return content
+	}
+	
+	// Add safety check to prevent crashes
+	var result string
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Error in removeBad: %v", r)
+			// On panic, still try to return censored content if possible
+			result = "***"
+		}
+	}()
+	
+	// First pass: Check normal words
+	var b strings.Builder
+	token := make([]rune, 0, 32)
+	
+	flush := func() {
+		if len(token) == 0 {
+			return
+		}
+		word := string(token)
+		norm := strings.ToLower(word)
+		log.Printf("Checking word: '%s' (normalized: '%s')", word, norm)
+		if h.tri.Search(norm) {
+			log.Printf("Word '%s' is censored -> ***", word)
+			b.WriteString("***")
+		} else {
+			log.Printf("Word '%s' is allowed", word)
+			b.WriteString(word)
+		}
+		token = token[:0]
+	}
+	
+	for _, r := range content {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			token = append(token, r)
+		} else {
+			flush()
+			b.WriteRune(r) // preserve original punctuation/whitespace
+		}
+	}
+	flush()
+	
+	result := b.String()
+	
+	// Second pass: Check for spaced-out words (like "b s d k" -> "bsdk")
+	// Only do this check if the content is reasonable length to avoid issues
+	if len(result) > 0 && len(result) < 500 {
+		result = h.checkSpacedWords(result)
+	}
+	
+	log.Printf("removeBad returning: '%s'", result)
+	return result
+}
+
+// checkSpacedWords detects words that are spaced out to bypass filtering
+func (h *Hub) checkSpacedWords(content string) string {
+	if h.tri == nil {
+		return content
+	}
+	
+	// Add safety check to prevent crashes
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Error in checkSpacedWords: %v", r)
+		}
+	}()
+	
+	words := strings.Fields(content)
+	if len(words) < 3 { // Require at least 3 words to avoid false positives
+		return content
+	}
+	
+	result := make([]string, len(words))
+	copy(result, words)
+	
+	// Check for patterns like "b s d k" (single characters with spaces)
+	for i := 0; i < len(words)-2; i++ { // Need at least 3 characters
+		// Look for sequences of single characters
+		var sequence []string
+		var indices []int
+		
+		j := i
+		for j < len(words) && len(strings.TrimSpace(words[j])) == 1 && unicode.IsLetter(rune(words[j][0])) {
+			sequence = append(sequence, strings.ToLower(strings.TrimSpace(words[j])))
+			indices = append(indices, j)
+			j++
+		}
+		
+		// Only check if we have at least 4 single characters to reduce false positives
+		if len(sequence) >= 4 {
+			combined := strings.Join(sequence, "")
+			if len(combined) >= 4 && h.tri.Search(combined) {
+				// Replace all the spaced characters with ***
+				for _, idx := range indices {
+					result[idx] = ""
+				}
+				if len(indices) > 0 {
+					result[indices[0]] = "***"
+				}
+			}
+		}
+		
+		// Skip ahead to avoid overlapping checks
+		if j > i+1 {
+			i = j - 2
+		}
+	}
+	
+	// Filter out empty strings and join
+	var filtered []string
+	for _, word := range result {
+		if word != "" {
+			filtered = append(filtered, word)
+		}
+	}
+	
+	return strings.Join(filtered, " ")
 }
 func (h *Hub) handleBroadcast(message models.Message) {
 	// Ensure message has an ID
 	if message.ID == "" {
 		message.ID = uuid.New().String()
 	}
-	
+
 	// Set timestamp if not set
 	if message.CreatedAt.IsZero() {
 		message.CreatedAt = time.Now()
 	}
-	
+
 	// Save message asynchronously
-	message.Content=h.removeBad(message.Content)
+	message.Content = h.removeBad(message.Content)
 	go h.saveMessage(message)
-	
+
 	// Broadcast to all connected clients
 	h.mu.RLock()
 	for client := range h.clients {
@@ -251,7 +347,7 @@ func (h *Hub) saveMessage(msg models.Message) {
 	if err := h.messageCache.Push(msg); err != nil {
 		log.Printf("Error saving to cache: %v", err)
 	}
-	
+
 	// Save to database
 	if err := h.messageRepo.Save(msg); err != nil {
 		log.Printf("Error saving to database: %v", err)
@@ -264,18 +360,18 @@ func (h *Hub) getRecentMessages() ([]models.Message, error) {
 	if err == nil && len(messages) > 0 {
 		return messages, nil
 	}
-	
+
 	// Fallback to database
 	messages, err = h.messageRepo.GetRecent(100)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Repopulate cache
 	if len(messages) > 0 {
 		go h.messageCache.Populate(messages)
 	}
-	
+
 	return messages, nil
 }
 
@@ -296,7 +392,7 @@ func (h *Hub) GetConnectedClients() int {
 func (h *Hub) startCleanupRoutine() {
 	ticker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
-	
+
 	for range ticker.C {
 		// Clean messages older than 30 days
 		if err := h.messageRepo.DeleteOlderThan(30 * 24 * time.Hour); err != nil {
